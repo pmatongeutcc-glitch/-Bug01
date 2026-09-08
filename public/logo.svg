@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 135" width="100%" height="100%">
+  <!-- BUG SOLUTIONS - Official Logo (Building Ultimate Growth) -->
+  <g id="bug-solutions-official-logo">
+    <!-- 1. ICON MARK: Stylized B with two upward chevrons -->
+    <g id="icon-mark" transform="translate(6, 2) scale(0.68)">
+      <!-- Outer B Contour -->
+      <path
+        d="M 12 12 L 48 12 C 68 12, 84 24, 84 41 C 84 55, 72 64, 52 64 L 54 64 C 74 64, 88 74, 88 91 C 88 108, 70 118, 48 118 L 12 118 Z"
+        fill="none"
+        stroke="#F05A28"
+        stroke-width="13"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <!-- Top Chevron Arrow (Pointing Up) -->
+      <path
+        d="M 24 50 L 48 26 L 72 50"
+        fill="none"
+        stroke="#F05A28"
+        stroke-width="11"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <!-- Bottom Chevron Arrow (Pointing Up) -->
+      <path
+        d="M 24 102 L 48 78 L 72 102"
+        fill="none"
+        stroke="#F05A28"
+        stroke-width="11"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </g>
+
+    <!-- 2. LOGO TEXT: Seamless Typography -->
+    <g transform="translate(82, 62)">
+      <!-- "UG" in Orange -->
+      <text
+        x="0"
+        y="0"
+        fill="#F05A28"
+        style="font-family: 'Prompt', 'Montserrat', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 800; font-size: 44px; letter-spacing: -0.5px;"
+      >
+        UG
+      </text>
+
+      <!-- "SOLUT" in Royal Blue -->
+      <text
+        x="76"
+        y="0"
+        fill="#164EA7"
+        style="font-family: 'Prompt', 'Montserrat', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 800; font-size: 44px; letter-spacing: -0.2px;"
+      >
+        SOLUT
+      </text>
+
+      <!-- Combined 'I' with Top-Right Orange Growth Arrow -->
+      <g transform="translate(254, -36)">
+        <rect
+          x="0"
+          y="14"
+          width="9.5"
+          height="22"
+          fill="#164EA7"
+          rx="1.5"
+        />
+        <polygon
+          points="0,-1 14,-1 14,13"
+          fill="#F05A28"
+        />
+        <polygon
+          points="3,2 10,2 10,9"
+          fill="#FFFFFF"
+        />
+      </g>
+
+      <!-- 'ONS' in Royal Blue -->
+      <text
+        x="272"
+        y="0"
+        fill="#164EA7"
+        style="font-family: 'Prompt', 'Montserrat', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 800; font-size: 44px; letter-spacing: -0.2px;"
+      >
+        ONS
+      </text>
+    </g>
+
+    <!-- 3. TAGLINE: "Building Ultimate Growth" -->
+    <text
+      x="300"
+      y="98"
+      text-anchor="middle"
+      fill="#164EA7"
+      style="font-family: 'Prompt', 'Montserrat', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 700; font-size: 17px; letter-spacing: 0.8px;"
+    >
+      Building Ultimate Growth
+    </text>
+  </g>
+</svg>

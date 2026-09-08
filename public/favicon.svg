@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <filter id="fav-shadow" x="-20%" y="-20%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" floodColor="#8B2500" floodOpacity="0.45" />
+    </filter>
+    <linearGradient id="fav-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#FFFFFF" />
+      <stop offset="100%" stopColor="#F1F5F9" />
+    </linearGradient>
+    <linearGradient id="fav-border" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#FFFFFF" />
+      <stop offset="50%" stopColor="#CBD5E1" />
+      <stop offset="100%" stopColor="#94A3B8" />
+    </linearGradient>
+    <linearGradient id="fav-extrude" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stopColor="#A82E00" />
+      <stop offset="100%" stopColor="#5E1600" />
+    </linearGradient>
+    <linearGradient id="fav-front" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%" stopColor="#FFA66E" />
+      <stop offset="30%" stopColor="#FF782E" />
+      <stop offset="70%" stopColor="#F26522" />
+      <stop offset="100%" stopColor="#D64500" />
+    </linearGradient>
+    <linearGradient id="fav-bevel" x1="0%" y1="0%" x2="100%" y2="50%">
+      <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.95" />
+      <stop offset="40%" stopColor="#FFE0D1" stopOpacity="0.8" />
+      <stop offset="100%" stopColor="#FFB385" stopOpacity="0.0" />
+    </linearGradient>
+    <linearGradient id="fav-chev-left" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stopColor="#FFBE94" />
+      <stop offset="100%" stopColor="#F26522" />
+    </linearGradient>
+    <linearGradient id="fav-chev-right" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stopColor="#D94907" />
+      <stop offset="100%" stopColor="#802100" />
+    </linearGradient>
+  </defs>
+
+  {/* Squircle Tile with 3D Cut Edge */}
+  <rect x="3" y="3" width="94" height="94" rx="24" fill="url(#fav-bg)" stroke="url(#fav-border)" stroke-width="2" />
+  
+  {/* Gloss reflection on upper half */}
+  <path d="M 4 28 C 4 14 14 4 28 4 L 72 4 C 86 4 96 14 96 28 L 96 46 C 65 38 35 48 4 46 Z" fill="#FFFFFF" opacity="0.6" />
+
+  {/* 3D Stylized B Glyph */}
+  <g transform="translate(13, 2) scale(0.92)" filter="url(#fav-shadow)">
+    {/* Extrusion */}
+    <g transform="translate(0, 3.5)">
+      <path d="M 17 11 L 17 85" stroke="url(#fav-extrude)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M 17 11 C 34 11 61 13 61 31 C 61 46 44 51 25 51" stroke="url(#fav-extrude)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M 25 51 C 46 51 65 57 65 72 C 65 85 38 85 17 85" stroke="url(#fav-extrude)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+    {/* Front Face */}
+    <path d="M 17 11 L 17 85" stroke="url(#fav-front)" stroke-width="10.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M 17 11 C 34 11 61 13 61 31 C 61 46 44 51 25 51" stroke="url(#fav-front)" stroke-width="10.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M 25 51 C 46 51 65 57 65 72 C 65 85 38 85 17 85" stroke="url(#fav-front)" stroke-width="10.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    
+    {/* Cut Bevel Highlight */}
+    <g transform="translate(-0.8, -1)">
+      <path d="M 17 12 L 17 84" stroke="url(#fav-bevel)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M 17 12 C 33 12 59 14 59 31 C 59 44 43 49 26 49" stroke="url(#fav-bevel)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M 26 49 C 45 49 63 55 63 70 C 63 83 37 83 17 83" stroke="url(#fav-bevel)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+
+    {/* Top Chevron 3D */}
+    <g>
+      <path d="M 22 43 L 38 27 L 38 34 L 26 45 Z" fill="url(#fav-chev-left)" />
+      <path d="M 38 27 L 52 43 L 46 45 L 38 34 Z" fill="url(#fav-chev-right)" />
+      <line x1="38" y1="27" x2="38" y2="34" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" />
+    </g>
+
+    {/* Bottom Chevron 3D */}
+    <g>
+      <path d="M 22 77 L 38 61 L 38 68 L 26 79 Z" fill="url(#fav-chev-left)" />
+      <path d="M 38 61 L 54 77 L 48 79 L 38 68 Z" fill="url(#fav-chev-right)" />
+      <line x1="38" y1="61" x2="38" y2="68" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" />
+    </g>
+  </g>
+</svg>

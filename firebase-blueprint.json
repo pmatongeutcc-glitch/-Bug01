@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "Car": {
+      "title": "Car",
+      "description": "Company fleet vehicle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "plate": { "type": "string" },
+        "brand": { "type": "string" },
+        "color": { "type": "string" },
+        "fuelType": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "vehicleId", "plate", "brand", "color", "fuelType"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Vehicle reservation record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "carId": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "bookerName": { "type": "string" },
+        "department": { "type": "string" },
+        "purpose": { "type": "string" },
+        "destination": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "carId", "date", "startTime", "endTime", "bookerName", "status"]
+    },
+    "LineMessage": {
+      "title": "LineMessage",
+      "description": "Log of LINE notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "event": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "message"]
+    }
+  },
+  "firestore": {
+    "/cars/{carId}": {
+      "schema": "Car",
+      "description": "Fleet vehicles list"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Vehicle reservations"
+    },
+    "/lineMessages/{messageId}": {
+      "schema": "LineMessage",
+      "description": "Broadcast notifications"
+    },
+    "/settings/{settingId}": {
+      "schema": "object",
+      "description": "System settings and rules"
+    }
+  }
+}

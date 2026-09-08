@@ -1,0 +1,6 @@
+{
+  "name": "Corporate Vehicle Booking System",
+  "description": "ระบบจองรถยนต์องค์กรแบบเรียลไทม์ พร้อม Cloud Sync เชื่อมต่อฐานข้อมูล Firestore ซิงก์ข้อมูลข้ามทุกอุปกรณ์ทันที ตารางไทม์ไลน์ 06:00-18:00 น. ระบบแจ้งเตือน และโครงสร้าง Atomic Data",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
