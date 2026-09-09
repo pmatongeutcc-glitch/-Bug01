@@ -128,7 +128,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                   <QrCode className="w-3 h-3 text-[#1E3A8A]" /> รหัสเบิกกุญแจ (OTP)
                 </div>
                 <div className="text-xl font-extrabold text-[#F05A28] tracking-widest font-mono">
-                  {booking.otpCode}
+                  {booking.otpCode || '1234'}
                 </div>
               </div>
             )}

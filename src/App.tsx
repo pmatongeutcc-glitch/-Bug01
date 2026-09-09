@@ -8,10 +8,11 @@ import {
 import { getTodayDateString, INITIAL_CARS } from './data/initialData';
 import { START_HOUR, END_HOUR, TOTAL_MINUTES } from './utils/time';
 import { 
-  Car as CarIcon, Clock, Calendar, ChevronLeft, ChevronRight, 
+  Car as CarIcon, Clock, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   CheckCircle2, Plus, Shield, Lock, X, Send, Bell, 
   Trash2, AlertCircle, Bolt, Fuel, User, MapPin, AlertTriangle, Cloud,
-  Radio, Globe, RefreshCw, Tv, Users, Check, Settings, Wrench, Megaphone, Edit3, Sparkles
+  Radio, Globe, RefreshCw, Tv, Users, Check, Settings, Wrench, Megaphone, Edit3, Sparkles,
+  Printer
 } from 'lucide-react';
 import { 
   testConnection, subscribeCars, subscribeBookings, subscribeLineMessages, subscribeSettings,
@@ -20,9 +21,13 @@ import {
   saveLineMessageToCloud, saveSettingsToCloud, clearAllBookingsFromCloud, fetchFreshDataFromCloud
 } from './lib/firebase';
 import { BugSolutionsLogo } from './components/BugSolutionsLogo';
+import { MonthlyCalendarView } from './components/MonthlyCalendarView';
 import { AdminSettingsModal } from './components/AdminSettingsModal';
 import { AdminCarModal } from './components/AdminCarModal';
 import { AdminBookingModal } from './components/AdminBookingModal';
+import { BookingDetailModal } from './components/BookingDetailModal';
+import { AdminKeyModal } from './components/AdminKeyModal';
+import { UserAccount } from './types';
 
 export default function App() {
   // Cloud Sync & Central Hub State
@@ -31,7 +36,10 @@ export default function App() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [liveToast, setLiveToast] = useState<{ message: string; timestamp: number } | null>(null);
   const [isKioskMode, setIsKioskMode] = useState(false);
+  const [isCentralBannerExpanded, setIsCentralBannerExpanded] = useState(false);
+  const [scheduleViewMode, setScheduleViewMode] = useState<'timeline' | 'monthly'>('timeline');
   const initialLoadRef = useRef(true);
+  const bookingFormRef = useRef<HTMLDivElement | null>(null);
 
   // State
   const [isAdmin, setIsAdmin] = useState(false);
@@ -68,6 +76,15 @@ export default function App() {
   const [purpose, setPurpose] = useState('');
   const [bookingError, setBookingError] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  // Quick book helper from monthly calendar or external
+  const handleQuickBookDate = (dateStr: string, carId?: string) => {
+    setSelectedDate(dateStr);
+    if (carId) setSelectedCarId(carId);
+    setTimeout(() => {
+      bookingFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 80);
+  };
 
   // Reasonable duration limit warning (Default 4 hours)
   const [reasonableLimitHours, setReasonableLimitHours] = useState<number>(4);
@@ -116,6 +133,18 @@ export default function App() {
   const [bookingToEdit, setBookingToEdit] = useState<Booking | null>(null);
 
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showKeyModal, setShowKeyModal] = useState<boolean>(false);
+  const [keyModalMode, setKeyModalMode] = useState<'handover' | 'return'>('handover');
+  const [keyModalBooking, setKeyModalBooking] = useState<Booking | null>(null);
+
+  const currentUser: UserAccount = {
+    id: isAdmin ? 'usr-admin' : 'usr-employee',
+    name: bookerName.trim() || (isAdmin ? 'ผู้ดูแลระบบ' : 'พนักงานบริษัท'),
+    email: 'staff@company.com',
+    role: isAdmin ? 'admin' : 'employee',
+    department: 'ฝ่ายยานพาหนะ/ส่วนกลาง',
+    employeeId: isAdmin ? 'ADM-001' : 'EMP-001'
+  };
   const [showLineModal, setShowLineModal] = useState(false);
   const [lineMessages, setLineMessages] = useState(getStoredLineMessages);
 
@@ -619,157 +648,268 @@ export default function App() {
           </div>
         )}
         
-        {/* ENTERPRISE CENTRAL HUB BANNER (Open for everyone without login requirement) */}
-        <div className="bg-gradient-to-r from-[#1E3A8A] via-[#1e40af] to-[#0f172a] text-white rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 border border-blue-900/40">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="shrink-0 drop-shadow-md">
-              <BugSolutionsLogo variant="badge" height={52} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white flex items-center gap-2">
+        {/* ENTERPRISE CENTRAL HUB BANNER (Collapsed by default, click to expand) */}
+        {!isCentralBannerExpanded ? (
+          <div
+            onClick={() => setIsCentralBannerExpanded(true)}
+            className="group bg-gradient-to-r from-[#1E3A8A] via-[#1e40af] to-[#0f172a] text-white rounded-xl sm:rounded-2xl px-3.5 sm:px-5 py-2.5 sm:py-3 shadow-xs flex items-center justify-between gap-3 border border-blue-900/40 hover:border-blue-500/50 hover:shadow-md transition-all cursor-pointer select-none"
+            title="คลิกเพื่อขยายดูรายละเอียดศูนย์กลางระบบและเครื่องมือ"
+          >
+            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+              <div className="shrink-0 drop-shadow-sm group-hover:scale-105 transition-transform">
+                <BugSolutionsLogo variant="badge" height={38} />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <h1 className="text-xs sm:text-sm md:text-base font-bold tracking-tight text-white truncate">
                   BUG SOLUTIONS • ศูนย์กลางระบบจองรถองค์กร
                 </h1>
-                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5 shadow-xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Live Real-time Sync
+                <span className="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Live Real-time
                 </span>
               </div>
-              <p className="text-xs text-blue-100/90 mt-1">
-                เปิดสาธารณะสำหรับทุกคน — ไม่ต้องล็อกอินก็ดูตารางความพร้อมของรถและกดจองได้ทันที ข้อมูลซิงก์ตรงกันทุกเครื่องแบบเรียลไทม์
-              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="hidden sm:flex text-[11px] text-blue-200 bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 items-center gap-1.5">
+                <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+                <span>{lastSyncTime || 'อัปเดตสด'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCentralBannerExpanded(true);
+                }}
+                className="flex items-center gap-1.5 text-xs font-semibold bg-white/15 group-hover:bg-white/25 text-white px-3 py-1.5 rounded-xl border border-white/20 transition-all cursor-pointer shadow-xs"
+              >
+                <span>ขยาย</span>
+                <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-0.5" />
+              </button>
             </div>
           </div>
-
-          {/* Real-time sync action buttons & timestamp */}
-          <div className="flex items-center gap-2 self-start md:self-center shrink-0 flex-wrap">
-            <div className="text-[11px] text-blue-200 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
-              <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-              <span>ซิงก์คลาวด์: <strong className="text-white font-medium">{lastSyncTime || 'อัปเดตสด'}</strong></span>
-            </div>
-            <button
-              onClick={handleManualRefresh}
-              disabled={isManualRefreshing}
-              className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-semibold border border-white/20 transition-all cursor-pointer disabled:opacity-50"
-              title="ดึงข้อมูลล่าสุดจาก Cloud Firestore ทันที"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin text-amber-300' : ''}`} />
-              <span>{isManualRefreshing ? 'กำลังดึง...' : 'รีเฟรชคลาวด์'}</span>
-            </button>
-            <button
-              onClick={() => setIsKioskMode(!isKioskMode)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                isKioskMode 
-                  ? 'bg-[#F05A28] text-white border-orange-400 shadow-sm' 
-                  : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
-              }`}
-              title="สลับโหมดจอแสดงผลส่วนกลาง (TV / Kiosk Display)"
-            >
-              <Tv className="w-3.5 h-3.5" />
-              <span>{isKioskMode ? 'ย่อขนาดจอปกติ' : 'โหมดจอทีวีส่วนกลาง'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* SECTION 1: TIMELINE (06:00 - 18:00) */}
-        <section className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
-          {/* Header & Controls */}
-          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center bg-slate-50/50">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-b from-white to-blue-50/80 border border-blue-200/90 shadow-xs flex items-center justify-center text-[#1E3A8A] ring-1 ring-white/80">
-                <Clock className="w-5 h-5 drop-shadow-2xs text-[#1E3A8A]" />
+        ) : (
+          <div className="bg-gradient-to-r from-[#1E3A8A] via-[#1e40af] to-[#0f172a] text-white rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 border border-blue-900/40 transition-all animate-fadeIn">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="shrink-0 drop-shadow-md">
+                <BugSolutionsLogo variant="badge" height={52} />
               </div>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-slate-800">
-                  ตารางเวลาจองรถ (Timeline)
-                </h2>
-                <p className="text-xs text-slate-500">
-                  ดูสถานะรถยนต์แบบ Real-time ช่วงเวลา 06:00 - 18:00 น.
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white flex items-center gap-2">
+                    BUG SOLUTIONS • ศูนย์กลางระบบจองรถองค์กร
+                  </h1>
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5 shadow-xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Live Real-time Sync
+                  </span>
+                </div>
+                <p className="text-xs text-blue-100/90 mt-1">
+                  เปิดสาธารณะสำหรับทุกคน — ไม่ต้องล็อกอินก็ดูตารางความพร้อมของรถและกดจองได้ทันที ข้อมูลซิงก์ตรงกันทุกเครื่องแบบเรียลไทม์
                 </p>
               </div>
             </div>
 
-            {/* Date Selector & Legend & 5-Slot Filter */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Filter Pills (5 slots limit) */}
-              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl text-[11px] font-semibold">
-                <button
-                  onClick={() => { setCarFilter('all'); setCarPage(0); }}
-                  className={`px-2.5 py-1 rounded-lg transition-all ${
-                    carFilter === 'all'
-                      ? 'bg-white text-[#1E3A8A] shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  ทั้งหมด (5 ช่อง)
-                </button>
-                <button
-                  onClick={() => { setCarFilter('ev'); setCarPage(0); }}
-                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${
-                    carFilter === 'ev'
-                      ? 'bg-white text-[#1E3A8A] shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  ⚡ EV
-                </button>
-                <button
-                  onClick={() => { setCarFilter('ice'); setCarPage(0); }}
-                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${
-                    carFilter === 'ice'
-                      ? 'bg-white text-[#1E3A8A] shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  ⛽ น้ำมัน
-                </button>
+            {/* Real-time sync action buttons & timestamp */}
+            <div className="flex items-center gap-2 self-start md:self-center shrink-0 flex-wrap">
+              <div className="text-[11px] text-blue-200 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
+                <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span>ซิงก์คลาวด์: <strong className="text-white font-medium">{lastSyncTime || 'อัปเดตสด'}</strong></span>
               </div>
-
-              {/* If cars exceed 5, show pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center gap-1 text-xs bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-xs">
-                  <button
-                    disabled={safePage === 0}
-                    onClick={() => setCarPage(p => Math.max(0, p - 1))}
-                    className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="text-[10px] text-slate-500 font-bold px-1">
-                    หน้า {safePage + 1}/{totalPages}
-                  </span>
-                  <button
-                    disabled={safePage >= totalPages - 1}
-                    onClick={() => setCarPage(p => Math.min(totalPages - 1, p + 1))}
-                    className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Date Input */}
-              <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-xs gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#1E3A8A]" />
-                <span className="text-xs font-medium text-slate-500">วันที่:</span>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs font-bold text-slate-800 outline-none bg-transparent cursor-pointer"
-                />
-              </div>
-
-              {!isToday && (
-                <button
-                  onClick={() => setSelectedDate(todayStr)}
-                  className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors"
-                >
-                  วันนี้
-                </button>
-              )}
+              <button
+                onClick={handleManualRefresh}
+                disabled={isManualRefreshing}
+                className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-semibold border border-white/20 transition-all cursor-pointer disabled:opacity-50"
+                title="ดึงข้อมูลล่าสุดจาก Cloud Firestore ทันที"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin text-amber-300' : ''}`} />
+                <span>{isManualRefreshing ? 'กำลังดึง...' : 'รีเฟรชคลาวด์'}</span>
+              </button>
+              <button
+                onClick={() => setIsKioskMode(!isKioskMode)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                  isKioskMode 
+                    ? 'bg-[#F05A28] text-white border-orange-400 shadow-sm' 
+                    : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
+                }`}
+                title="สลับโหมดจอแสดงผลส่วนกลาง (TV / Kiosk Display)"
+              >
+                <Tv className="w-3.5 h-3.5" />
+                <span>{isKioskMode ? 'ย่อขนาดจอปกติ' : 'โหมดจอทีวีส่วนกลาง'}</span>
+              </button>
+              <button
+                onClick={() => setIsCentralBannerExpanded(false)}
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-semibold border border-white/20 transition-all cursor-pointer ml-1"
+                title="ย่อแถบข้อมูลนี้กลับ"
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+                <span>ย่อเก็บ</span>
+              </button>
             </div>
           </div>
+        )}
+
+        {/* SECTION 1: SCHEDULE VIEW (TIMELINE OR MONTHLY CALENDAR) */}
+        <section className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden flex flex-col">
+          {/* Header & View Mode Switcher */}
+          <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center bg-slate-50/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-b from-white to-blue-50/80 border border-blue-200/90 shadow-xs flex items-center justify-center text-[#1E3A8A] ring-1 ring-white/80">
+                {scheduleViewMode === 'timeline' ? (
+                  <Clock className="w-5 h-5 drop-shadow-2xs text-[#1E3A8A]" />
+                ) : (
+                  <Calendar className="w-5 h-5 drop-shadow-2xs text-[#1E3A8A]" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <span>{scheduleViewMode === 'timeline' ? 'ตารางเวลาจองรถ (Timeline)' : 'ตารางช่องรายเดือน (Monthly Calendar)'}</span>
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {scheduleViewMode === 'timeline'
+                    ? 'ดูสถานะรถยนต์แบบ Real-time ช่วงเวลา 06:00 - 18:00 น.'
+                    : 'ภาพรวมตารางการจัดสรรรถยนต์ทั้งเดือน คลีน สวยงามระดับลัคชูลี วางแผนล่วงหน้าง่ายดาย'}
+                </p>
+              </div>
+            </div>
+
+            {/* View Mode Switcher Tabs */}
+            <div className="flex items-center bg-slate-200/80 p-1 rounded-xl shadow-2xs gap-1">
+              <button
+                type="button"
+                onClick={() => setScheduleViewMode('timeline')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  scheduleViewMode === 'timeline'
+                    ? 'bg-white text-[#1E3A8A] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>ไทม์ไลน์รายวัน</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleViewMode('monthly')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  scheduleViewMode === 'monthly'
+                    ? 'bg-gradient-to-r from-[#1E3A8A] to-[#1e40af] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>ตารางช่องรายเดือน</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#F05A28] text-white font-extrabold ml-0.5 shadow-2xs">
+                  Pro
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Conditional Rendering: Monthly View or Daily Timeline */}
+          {scheduleViewMode === 'monthly' ? (
+            <div className="p-4 sm:p-5">
+              <MonthlyCalendarView
+                cars={cars}
+                bookings={bookings}
+                currentDateStr={selectedDate}
+                onSelectDate={(dateStr) => setSelectedDate(dateStr)}
+                onSwitchToTimeline={(dateStr) => {
+                  setSelectedDate(dateStr);
+                  setScheduleViewMode('timeline');
+                }}
+                onSelectBooking={(b) => setSelectedBooking(b)}
+                onQuickBookDate={handleQuickBookDate}
+              />
+            </div>
+          ) : (
+            <>
+              {/* Daily Timeline Toolbar (Filter & Date Selector) */}
+              <div className="p-3 sm:px-5 border-b border-slate-100 flex flex-wrap gap-2.5 justify-between items-center bg-white">
+                <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>ตารางวันที่: <strong className="text-[#1E3A8A]">{selectedDate}</strong></span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Filter Pills (5 slots limit) */}
+                  <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl text-[11px] font-semibold">
+                    <button
+                      onClick={() => { setCarFilter('all'); setCarPage(0); }}
+                      className={`px-2.5 py-1 rounded-lg transition-all ${
+                        carFilter === 'all'
+                          ? 'bg-white text-[#1E3A8A] shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ทั้งหมด (5 ช่อง)
+                    </button>
+                    <button
+                      onClick={() => { setCarFilter('ev'); setCarPage(0); }}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                        carFilter === 'ev'
+                          ? 'bg-white text-[#1E3A8A] shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ⚡ EV
+                    </button>
+                    <button
+                      onClick={() => { setCarFilter('ice'); setCarPage(0); }}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${
+                        carFilter === 'ice'
+                          ? 'bg-white text-[#1E3A8A] shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ⛽ น้ำมัน
+                    </button>
+                  </div>
+
+                  {/* If cars exceed 5, show pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1 text-xs bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-xs">
+                      <button
+                        disabled={safePage === 0}
+                        onClick={() => setCarPage(p => Math.max(0, p - 1))}
+                        className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[10px] text-slate-500 font-bold px-1">
+                        หน้า {safePage + 1}/{totalPages}
+                      </span>
+                      <button
+                        disabled={safePage >= totalPages - 1}
+                        onClick={() => setCarPage(p => Math.min(totalPages - 1, p + 1))}
+                        className="p-0.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Date Input */}
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-xs gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-[#1E3A8A]" />
+                    <span className="text-xs font-medium text-slate-500">วันที่:</span>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="text-xs font-bold text-slate-800 outline-none bg-transparent cursor-pointer"
+                    />
+                  </div>
+
+                  {!isToday && (
+                    <button
+                      onClick={() => setSelectedDate(todayStr)}
+                      className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors"
+                    >
+                      วันนี้
+                    </button>
+                  )}
+                </div>
+              </div>
 
           {/* Timeline Grid */}
           <div className="p-4 overflow-x-auto relative">
@@ -918,13 +1058,15 @@ export default function App() {
               </div>
             </div>
           </div>
-        </section>
+        </>
+      )}
+    </section>
 
         {/* SECTION 2: BOOKING FORM + REALTIME STATS & FLEET TABLE */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
           {/* LEFT: Quick Booking Form (Direct on screen, clean & fast) */}
-          <section className="lg:col-span-1 bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+          <section ref={bookingFormRef} className="lg:col-span-1 bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <h2 className="text-base font-bold text-[#1E3A8A] flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-gradient-to-b from-orange-50 to-orange-100/80 border border-orange-200/90 shadow-2xs flex items-center justify-center text-[#F05A28] ring-1 ring-white">
