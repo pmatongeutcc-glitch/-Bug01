@@ -307,6 +307,7 @@ export default function App() {
       purpose: purpose.trim() || 'ติดต่อประสานงาน',
       destination: purpose.trim() || 'ภายนอกบริษัท',
       status: 'pending',
+      otpCode: Math.floor(1000 + Math.random() * 9000).toString(),
       createdAt: new Date().toISOString()
     };
 
@@ -353,14 +354,42 @@ export default function App() {
       return;
     }
 
-    if (startTime >= endTime) {
-      setBookingError('เวลาเริ่มต้องมาก่อนเวลากลับ (ช่วง 06:00 - 18:00 น.)');
+    // Operating hours boundary: 06:00 - 18:00
+    if (startTime < '06:00' || endTime > '18:00') {
+      setBookingError('❌ ช่วงเวลาให้บริการจองรถคือ 06:00 - 18:00 น. เท่านั้น');
       return;
     }
 
-    // Check collision
+    if (startTime >= endTime) {
+      setBookingError('❌ เวลาเริ่มต้องมาก่อนเวลากลับ (ช่วง 06:00 - 18:00 น.)');
+      return;
+    }
+
+    // Prevent past date booking
+    if (selectedDate < todayStr && !isAdmin) {
+      setBookingError('❌ ไม่สามารถจองย้อนหลังได้ กรุณาเลือกวันปัจจุบันหรือวันล่วงหน้า');
+      return;
+    }
+
+    // If today, check if requested start/end time is already in the past
+    if (selectedDate === todayStr && !isAdmin) {
+      const now = new Date();
+      const currentHM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      if (endTime <= currentHM) {
+        setBookingError('❌ ช่วงเวลาที่คุณเลือกได้ล่วงเลยเวลาปัจจุบันไปแล้ว กรุณาเลือกช่วงเวลาใหม่');
+        return;
+      }
+    }
+
+    // Check collision against active bookings
     const collision = bookings.some(b => {
-      if (b.carId === selectedCarId && b.date === selectedDate && b.status !== 'cancelled' && b.status !== 'completed') {
+      if (
+        b.carId === selectedCarId && 
+        b.date === selectedDate && 
+        b.status !== 'cancelled' && 
+        b.status !== 'completed' &&
+        b.status !== 'rejected'
+      ) {
         return startTime < b.endTime && endTime > b.startTime;
       }
       return false;
@@ -400,7 +429,9 @@ export default function App() {
     const b = bookings.find(item => item.id === bookingId);
     const car = cars.find(c => c.id === b?.carId);
 
-    if (newStatus === 'in_use') {
+    if (newStatus === 'approved') {
+      addLineLog(`✅ [อนุมัติการจอง] รถ ${car?.brand} [${car?.vehicleId}: ${car?.plate}] สำหรับคุณ ${b?.bookerName} วันที่ ${b?.date} เวลา ${b?.startTime}-${b?.endTime} น.`);
+    } else if (newStatus === 'in_use') {
       addLineLog(`🔑 [ส่งมอบกุญแจแล้ว] รถ ${car?.brand} [${car?.vehicleId}: ${car?.plate}] ให้คุณ ${b?.bookerName} มีกำหนดคืน ${b?.endTime} น.`);
     } else if (newStatus === 'completed') {
       addLineLog(`🏁 [คืนรถเรียบร้อย] รถ ${car?.brand} [${car?.vehicleId}: ${car?.plate}] ส่งคืนแล้วโดยคุณ ${b?.bookerName}`);
@@ -408,6 +439,78 @@ export default function App() {
       addLineLog(`❌ [ยกเลิกการจอง] รายการจองรถ ${car?.brand} [${car?.vehicleId}] เวลา ${b?.startTime}-${b?.endTime} น. ถูกยกเลิก`);
     }
 
+    setSelectedBooking(null);
+  };
+
+  // Handover & Return Modal Controllers
+  const handleOpenHandoverModal = (b: Booking) => {
+    setKeyModalBooking(b);
+    setKeyModalMode('handover');
+    setShowKeyModal(true);
+  };
+
+  const handleOpenReturnModal = (b: Booking) => {
+    setKeyModalBooking(b);
+    setKeyModalMode('return');
+    setShowKeyModal(true);
+  };
+
+  const handleConfirmHandover = async (bookingId: string, mileage: number, fuelLevel: string, verifiedOtp: string) => {
+    const handoverTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    const updates: Partial<Booking> = {
+      status: 'in_use',
+      handoverMileage: mileage,
+      handoverFuelLevel: fuelLevel,
+      handoverTime
+    };
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...updates } : b));
+    await updateBookingInCloud(bookingId, updates).catch(err => console.error('Cloud handover error:', err));
+    
+    const b = bookings.find(item => item.id === bookingId);
+    const targetCar = cars.find(c => c.id === b?.carId);
+    if (targetCar && mileage > (targetCar.mileage || 0)) {
+      const updatedCar = { ...targetCar, mileage };
+      setCars(prev => prev.map(c => c.id === targetCar.id ? updatedCar : c));
+      updateCarInCloud(targetCar.id, { mileage }).catch(err => console.error(err));
+    }
+    addLineLog(`🔑 [ส่งมอบกุญแจแล้ว] รถ ${targetCar?.brand} [${targetCar?.vehicleId}: ${targetCar?.plate}] ให้คุณ ${b?.bookerName} (OTP ตรวจสอบผ่าน, ไมล์ออก ${mileage.toLocaleString()} กม.)`);
+    setShowKeyModal(false);
+  };
+
+  const handleConfirmReturn = async (bookingId: string, mileage: number, fuelLevel: string, notes: string) => {
+    const returnTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+    const updates: Partial<Booking> = {
+      status: 'completed',
+      returnMileage: mileage,
+      returnFuelLevel: fuelLevel,
+      returnNotes: notes,
+      returnTime
+    };
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...updates } : b));
+    await updateBookingInCloud(bookingId, updates).catch(err => console.error('Cloud return error:', err));
+    
+    const b = bookings.find(item => item.id === bookingId);
+    const targetCar = cars.find(c => c.id === b?.carId);
+    if (targetCar && mileage > (targetCar.mileage || 0)) {
+      const updatedCar = { ...targetCar, mileage };
+      setCars(prev => prev.map(c => c.id === targetCar.id ? updatedCar : c));
+      updateCarInCloud(targetCar.id, { mileage }).catch(err => console.error(err));
+    }
+    addLineLog(`🏁 [ตรวจรับคืนรถเรียบร้อย] รถ ${targetCar?.brand} [${targetCar?.vehicleId}: ${targetCar?.plate}] ส่งคืนแล้วโดยคุณ ${b?.bookerName} (ไมล์เข้า ${mileage.toLocaleString()} กม.)`);
+    setShowKeyModal(false);
+  };
+
+  const handleCancelBookingWithReason = async (bookingId: string, reason: string) => {
+    const updates: Partial<Booking> = {
+      status: 'cancelled',
+      cancellationReason: reason
+    };
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...updates } : b));
+    await updateBookingInCloud(bookingId, updates).catch(err => console.error('Cloud cancel error:', err));
+    
+    const b = bookings.find(item => item.id === bookingId);
+    const targetCar = cars.find(c => c.id === b?.carId);
+    addLineLog(`❌ [ยกเลิกการจอง] รถ ${targetCar?.brand} [${targetCar?.vehicleId}] เวลา ${b?.startTime}-${b?.endTime} น. (เหตุผล: ${reason || 'ผู้ใช้ยกเลิกการจอง'})`);
     setSelectedBooking(null);
   };
 
@@ -903,11 +1006,20 @@ export default function App() {
                   {!isToday && (
                     <button
                       onClick={() => setSelectedDate(todayStr)}
-                      className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors"
+                      className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors cursor-pointer"
                     >
                       วันนี้
                     </button>
                   )}
+
+                  <button
+                    onClick={() => window.print()}
+                    className="no-print flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium transition-colors cursor-pointer shadow-xs"
+                    title="พิมพ์ตารางเวลารถยนต์ของวันนี้"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="hidden sm:inline">พิมพ์ตาราง</span>
+                  </button>
                 </div>
               </div>
 
@@ -935,7 +1047,7 @@ export default function App() {
                   {/* Current Time Marker */}
                   {currentTimePct !== null && (
                     <div
-                      className="absolute top-0 bottom-[-1000px] w-px bg-red-500 z-20 pointer-events-none"
+                      className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
                       style={{ left: `${currentTimePct}%` }}
                     >
                       <div className="absolute -top-1 -translate-x-1/2 bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold shadow-xs whitespace-nowrap">
@@ -1018,17 +1130,27 @@ export default function App() {
                                 const widthPct = Math.max(((dEnd - dStart) / TOTAL_MINUTES) * 100, 3);
 
                                 let bgClass = "bg-[#F05A28]";
-                                if (b.status === 'in_use') bgClass = "bg-[#1E3A8A]";
-                                else if (b.status === 'completed') bgClass = "bg-slate-400";
+                                let statusIcon = "⏳";
+                                if (b.status === 'in_use') {
+                                  bgClass = "bg-[#1E3A8A]";
+                                  statusIcon = "🔑";
+                                } else if (b.status === 'approved') {
+                                  bgClass = "bg-emerald-600";
+                                  statusIcon = "✓";
+                                } else if (b.status === 'completed') {
+                                  bgClass = "bg-slate-400";
+                                  statusIcon = "🏁";
+                                }
 
                                 return (
                                   <button
                                     key={b.id}
                                     onClick={() => setSelectedBooking(b)}
-                                    className={`absolute top-0.5 bottom-0.5 rounded-lg ${bgClass} opacity-95 text-white px-2 text-left flex items-center cursor-pointer transition-transform hover:scale-[1.01] z-10 overflow-hidden shadow-xs`}
+                                    className={`absolute top-0.5 bottom-0.5 rounded-lg ${bgClass} opacity-95 text-white px-2 text-left flex items-center gap-1 cursor-pointer transition-transform hover:scale-[1.01] z-10 overflow-hidden shadow-xs`}
                                     style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                                    title={`จองโดย: ${b.bookerName} (${b.startTime} - ${b.endTime})\nวัตถุประสงค์: ${b.purpose}\nคลิกเพื่อดูข้อมูลหรือยกเลิก`}
+                                    title={`จองโดย: ${b.bookerName} (${b.startTime} - ${b.endTime})\nวัตถุประสงค์: ${b.purpose}\nคลิกเพื่อดูรายละเอียดและจัดการกุญแจ`}
                                   >
+                                    <span className="text-[9px] shrink-0 opacity-90">{statusIcon}</span>
                                     <span className="text-[10px] font-bold truncate">
                                       {b.bookerName} ({b.startTime}-{b.endTime})
                                     </span>
@@ -1055,6 +1177,33 @@ export default function App() {
                     </div>
                   );
                 }))}
+              </div>
+
+              {/* Timeline Status Legend */}
+              <div className="mt-4 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500">
+                <div className="flex flex-wrap items-center gap-4">
+                  <span className="font-semibold text-slate-700">สัญลักษณ์สถานะ:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-[#F05A28]"></span>
+                    <span>รอรับกุญแจ (Pending)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-emerald-600"></span>
+                    <span>อนุมัติแล้ว (Approved)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-[#1E3A8A]"></span>
+                    <span>กำลังใช้งาน (In Use)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-slate-400"></span>
+                    <span>คืนรถแล้ว (Completed)</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-400 text-[10px]">
+                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                  <span>เส้นสีแดง: เวลาปัจจุบัน</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1570,110 +1719,41 @@ export default function App() {
         </div>
       </footer>
 
-      {/* MODAL: Booking Detail & Cancellation */}
-      {selectedBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm overflow-hidden p-5 space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800 text-sm">ข้อมูลการจองรถยนต์</h3>
-              <button
-                onClick={() => setSelectedBooking(null)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* PROFESSIONAL MODAL: Booking Detail & OTP & Actions */}
+      <BookingDetailModal
+        isOpen={Boolean(selectedBooking)}
+        onClose={() => setSelectedBooking(null)}
+        booking={selectedBooking}
+        car={cars.find(c => c.id === selectedBooking?.carId)}
+        currentUser={currentUser}
+        onApprove={(bookingId) => updateBookingStatus(bookingId, 'approved')}
+        onOpenHandoverModal={(b) => {
+          setSelectedBooking(null);
+          handleOpenHandoverModal(b);
+        }}
+        onOpenReturnModal={(b) => {
+          setSelectedBooking(null);
+          handleOpenReturnModal(b);
+        }}
+        onCancelBooking={handleCancelBookingWithReason}
+        onEditBooking={(b) => {
+          setBookingToEdit(b);
+          setShowAdminBookingModal(true);
+          setSelectedBooking(null);
+        }}
+      />
 
-            <div className="text-xs space-y-2 text-slate-600">
-              <div className="flex justify-between">
-                <span className="text-slate-400">ผู้ขอจอง:</span>
-                <span className="font-bold text-slate-800">{selectedBooking.bookerName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">วันที่:</span>
-                <span className="font-semibold text-slate-700">{selectedBooking.date}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">เวลา:</span>
-                <span className="font-semibold text-[#1E3A8A]">{selectedBooking.startTime} - {selectedBooking.endTime} น.</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">จุดประสงค์:</span>
-                <span className="font-medium text-slate-800 text-right">{selectedBooking.purpose}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">สถานะ:</span>
-                <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${
-                  selectedBooking.status === 'in_use'
-                    ? 'bg-blue-50 text-[#1E3A8A]'
-                    : selectedBooking.status === 'completed'
-                    ? 'bg-slate-100 text-slate-600'
-                    : 'bg-orange-50 text-[#F05A28]'
-                }`}>
-                  {selectedBooking.status === 'in_use' ? 'กำลังใช้งาน' : selectedBooking.status === 'completed' ? 'คืนรถแล้ว' : 'รอรับกุญแจ'}
-                </span>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2 justify-end">
-              {isAdmin && (
-                <button
-                  onClick={() => {
-                    setBookingToEdit(selectedBooking);
-                    setShowAdminBookingModal(true);
-                    setSelectedBooking(null);
-                  }}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
-                  title="แก้ไขรายละเอียดคิวนี้ในฐานะผู้ดูแลระบบ"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-[#1E3A8A]" />
-                  <span>แก้ไขคิว (Pro)</span>
-                </button>
-              )}
-
-              {selectedBooking.status !== 'completed' && (
-                <button
-                  onClick={() => {
-                    if (confirm('คุณต้องการยกเลิกการจองรายการนี้ใช่หรือไม่?')) {
-                      updateBookingStatus(selectedBooking.id, 'cancelled');
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-semibold border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>ยกเลิกการจอง</span>
-                </button>
-              )}
-
-              {isAdmin && selectedBooking.status === 'pending' && (
-                <button
-                  onClick={() => updateBookingStatus(selectedBooking.id, 'in_use')}
-                  className="px-3 py-1.5 bg-[#1E3A8A] hover:bg-[#152a65] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
-                >
-                  ส่งมอบกุญแจ
-                </button>
-              )}
-
-              {isAdmin && selectedBooking.status === 'in_use' && (
-                <button
-                  onClick={() => updateBookingStatus(selectedBooking.id, 'completed')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
-                >
-                  รับรถคืน
-                </button>
-              )}
-
-              <button
-                onClick={() => setSelectedBooking(null)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium cursor-pointer"
-              >
-                ปิด
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* PROFESSIONAL MODAL: Admin Key Handover & Return */}
+      <AdminKeyModal
+        isOpen={showKeyModal}
+        onClose={() => setShowKeyModal(false)}
+        mode={keyModalMode}
+        booking={keyModalBooking}
+        car={cars.find(c => c.id === keyModalBooking?.carId)}
+        currentUser={currentUser}
+        onConfirmHandover={handleConfirmHandover}
+        onConfirmReturn={handleConfirmReturn}
+      />
 
       {/* MODAL: Admin PIN Verification (Default PIN: 1234) */}
       {showPinModal && (
